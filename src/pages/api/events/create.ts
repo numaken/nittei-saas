@@ -1,4 +1,3 @@
-// src/pages/api/events/create.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { z } from 'zod'
 import { supabaseService } from '@/lib/supabase'
@@ -61,7 +60,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       timezone: b.timezone,
       deadline_at: b.deadlineAt || null
     })
-    .select('*')   // ← DEFAULT 反映後の値を返してもらう
+    .select('*')
     .single()
   if (e1 || !ev) { allow(res); return res.status(500).json({ error: e1?.message || 'insert events failed' }) }
 

@@ -1,4 +1,3 @@
-// 安全なランダムトークン生成（Nodeランタイム）
 import { randomBytes } from 'crypto'
 
 export function generateToken(len = 16): string {

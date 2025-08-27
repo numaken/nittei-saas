@@ -1,10 +1,12 @@
 import { supabaseService } from '@/lib/supabase'
 
-// 既存互換: グローバル管理キー
+// 運営のマスター鍵
 export function requireAdmin(req: any) {
   const k = req.headers['x-admin-key']
   if (!k || k !== process.env.ADMIN_SECRET) {
-    const err: any = new Error('Unauthorized'); err.status = 401; throw err
+    const err: any = new Error('Unauthorized')
+    err.status = 401
+    throw err
   }
 }
 
@@ -31,6 +33,8 @@ export async function requireOrganizerOrAdmin(req: any, eventId: string) {
     .single()
 
   if (error || !ev || ev.organizer_token !== organizer) {
-    const err: any = new Error('Unauthorized'); err.status = 401; throw err
+    const err: any = new Error('Unauthorized')
+    err.status = 401
+    throw err
   }
 }
