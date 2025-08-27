@@ -178,7 +178,6 @@ export default function Landing() {
           <div style={{ display: 'flex', gap: 12 }}>
             <Link href="/organizer/new">新規作成</Link>
             <a href="#how">使い方</a>
-            <a href="https://github.com/numaken/nittei-saas" target="_blank" rel="noreferrer">GitHub</a>
           </div>
         </div>
       </footer>
