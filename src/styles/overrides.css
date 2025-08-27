@@ -1,0 +1,117 @@
+:root {
+  --ok: #10b981;
+  /* emerald */
+  --maybe: #f59e0b;
+  /* amber */
+  --ng: #ef4444;
+  /* red */
+  --ink: #111827;
+  /* zinc-900 */
+  --muted: #6b7280;
+  /* zinc-500 */
+  --card: #ffffff;
+  --cardBorder: #e5e7eb;
+  --bg: #f8fafc;
+}
+
+html,
+body {
+  background: var(--bg);
+}
+
+.uk-card {
+  border: 1px solid var(--cardBorder);
+  border-radius: 12px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.badge-ok {
+  background: color-mix(in srgb, var(--ok) 15%, white);
+  color: var(--ok);
+}
+
+.badge-maybe {
+  background: color-mix(in srgb, var(--maybe) 15%, white);
+  color: var(--maybe);
+}
+
+.badge-ng {
+  background: color-mix(in srgb, var(--ng) 15%, white);
+  color: var(--ng);
+}
+
+.meter {
+  height: 10px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #eef2f7;
+  display: flex;
+}
+
+.meter>div {
+  height: 100%;
+}
+
+.meter .ok {
+  background: var(--ok);
+}
+
+.meter .maybe {
+  background: var(--maybe);
+}
+
+.meter .ng {
+  background: var(--ng);
+}
+
+.sticky-bar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  backdrop-filter: saturate(180%) blur(8px);
+  background: rgba(255, 255, 255, .8);
+  border-bottom: 1px solid var(--cardBorder);
+}
+
+.hero {
+  padding: 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.hero .title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--ink);
+  margin: 0;
+}
+
+.hero .sub {
+  color: var(--muted);
+  margin: 0;
+}
+
+.invite-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.invite-url {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+.btn-ghost {
+  border: 1px solid var(--cardBorder);
+  background: #fff;
+}

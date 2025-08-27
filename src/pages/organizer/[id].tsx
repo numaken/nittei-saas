@@ -12,6 +12,7 @@ export default function OrganizerView() {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [invites, setInvites] = useState<Invite[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState<string>('')
 
   useEffect(() => {
     if (!id) return
@@ -39,97 +40,147 @@ export default function OrganizerView() {
     })
     const j = await res.json().catch(() => ({}))
     if (!res.ok) { setError(j.error || '確定に失敗'); return }
-    alert('確定しました。ICS を配布できます。')
+    alert('確定しました。右上の「ICSダウンロード」から配布できます。')
   }
 
   const icsUrl = summary?.event?.id ? `/api/events/${summary.event.id}/ics` : '#'
 
+  const copy = async (txt: string) => {
+    await navigator.clipboard.writeText(txt)
+    setCopied('copied')
+    setTimeout(() => setCopied(''), 1200)
+  }
+
   return (
-    <main className="uk-container uk-margin-large-top">
-      <h1 className="uk-heading-line"><span>幹事ダッシュボード</span></h1>
+    <main className="uk-container">
+      {/* Sticky bar */}
+      <div className="sticky-bar">
+        <div className="hero uk-container">
+          <div>
+            <h1 className="title">幹事ダッシュボード</h1>
+            <p className="sub">最適候補の可視化とリンク配布</p>
+          </div>
+          <div className="uk-margin-auto-left">
+            <a href={icsUrl} className="uk-button btn-ghost">ICS ダウンロード</a>
+          </div>
+        </div>
+      </div>
 
       {summary ? (
-        <>
-          <h2 className="uk-heading-bullet">{summary.event.title}</h2>
-          {summary.event.description && <p className="uk-text-muted">{summary.event.description}</p>}
-
-          {/* Top3 候補 */}
-          <div className="uk-child-width-1-3@m uk-grid-small" uk-grid="true">
-            {top3.map(s => (
-              <div key={s.id}>
-                <div className="uk-card uk-card-default uk-card-body">
-                  <h3 className="uk-card-title">
-                    {new Date(s.start_at).toLocaleString()}<br />
-                    ～ {new Date(s.end_at).toLocaleTimeString()}
-                  </h3>
-                  <p>スコア: <b>{s.score}</b>（◎{s.yes} / △{s.maybe} / ×{s.no}）</p>
-                  <progress className="uk-progress" value={s.yes} max={s.yes + s.maybe + s.no}></progress>
-                  <button
-                    className="uk-button uk-button-primary uk-margin-top"
-                    onClick={() => decide(s.id)}
-                  >
-                    この候補で確定
-                  </button>
-                </div>
+        <div className="uk-margin-large-top">
+          <div className="uk-card uk-card-default uk-card-body">
+            <div className="uk-flex uk-flex-middle uk-flex-between">
+              <div>
+                <h2 className="uk-margin-remove">{summary.event.title}</h2>
+                {summary.event.description && <p className="uk-text-muted uk-margin-small">{summary.event.description}</p>}
               </div>
-            ))}
+              <div>
+                <span className="badge badge-ok">◎ yes = 2</span>
+                <span className="badge badge-maybe uk-margin-small-left">△ maybe = 1</span>
+                <span className="badge badge-ng uk-margin-small-left">× no = 0</span>
+              </div>
+            </div>
           </div>
 
-          <a href={icsUrl} className="uk-button uk-button-default uk-margin-top">
-            ICS ダウンロード
-          </a>
+          {/* Top 3 cards */}
+          <div className="uk-child-width-1-3@m uk-grid-small uk-margin" uk-grid="true">
+            {top3.map(s => {
+              const total = Math.max(1, s.yes + s.maybe + s.no)
+              const okW = (s.yes / total) * 100, mayW = (s.maybe / total) * 100, ngW = 100 - okW - mayW
+              return (
+                <div key={s.id}>
+                  <div className="uk-card uk-card-default uk-card-body">
+                    <h3 className="uk-card-title uk-margin-remove-bottom">{new Date(s.start_at).toLocaleString()}</h3>
+                    <div className="uk-text-meta">～ {new Date(s.end_at).toLocaleTimeString()}</div>
+                    <div className="uk-margin-small">
+                      <span className="badge badge-ok">◎ {s.yes}</span>
+                      <span className="badge badge-maybe uk-margin-small-left">△ {s.maybe}</span>
+                      <span className="badge badge-ng uk-margin-small-left">× {s.no}</span>
+                    </div>
+                    <div className="meter uk-margin-small-top">
+                      <div className="ok" style={{ width: `${okW}%` }} />
+                      <div className="maybe" style={{ width: `${mayW}%` }} />
+                      <div className="ng" style={{ width: `${ngW}%` }} />
+                    </div>
+                    <div className="uk-flex uk-flex-middle uk-margin-small-top">
+                      <div className="uk-text-bold">Score {s.score.toFixed(1)}</div>
+                      <button className="uk-button uk-button-primary uk-margin-small-left" onClick={() => decide(s.id)}>
+                        この候補で確定
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
 
-          {/* 参加リンク */}
-          <div className="uk-card uk-card-secondary uk-card-body uk-margin-top">
-            <h3 className="uk-card-title">参加リンク</h3>
-            <div className="uk-margin">
-              <input type="password" className="uk-input" placeholder="ADMIN_SECRET" value={adminKey} onChange={e => setAdminKey(e.target.value)} />
-              <button className="uk-button uk-button-default uk-margin-small-left" onClick={fetchInvites}>取得</button>
+          {/* invites */}
+          <div className="uk-card uk-card-default uk-card-body uk-margin">
+            <div className="uk-flex uk-flex-middle uk-flex-between">
+              <h3 className="uk-margin-remove">参加リンク</h3>
+              <div className="uk-inline">
+                <input type="password" className="uk-input" placeholder="ADMIN_SECRET" value={adminKey} onChange={e => setAdminKey(e.target.value)} style={{ width: 240 }} />
+                <button className="uk-button btn-ghost uk-margin-small-left" onClick={fetchInvites}>取得</button>
+              </div>
             </div>
-            <ul className="uk-list uk-list-divider">
+            <ul className="uk-list uk-list-divider uk-margin-small-top">
               {invites.map(p => (
-                <li key={p.id}>
-                  {p.name || p.email || '参加者'}（{p.role}）：
-                  <a href={p.url} target="_blank" rel="noreferrer">{p.url}</a>
-                  <button className="uk-button uk-button-text uk-margin-small-left" onClick={() => navigator.clipboard.writeText(p.url)}>📋 コピー</button>
+                <li key={p.id} className="invite-item">
+                  <div>
+                    <div className="uk-text-bold">{p.name || p.email || '参加者'}</div>
+                    <div className="invite-url uk-text-muted">{p.url}</div>
+                  </div>
+                  <div>
+                    <span className="badge">{p.role}</span>
+                    <button className="uk-button uk-button-text uk-margin-small-left" onClick={() => copy(p.url)}>
+                      📋 コピー
+                    </button>
+                  </div>
                 </li>
               ))}
+              {invites.length === 0 && <li className="uk-text-muted">ADMIN_SECRET を入力して「取得」を押すと、配布用URLが表示されます。</li>}
             </ul>
+            {copied && <div className="uk-alert-success uk-margin-small" uk-alert="true"><p>コピーしました</p></div>}
+            {error && <div className="uk-alert-danger uk-margin-small" uk-alert="true"><p>{error}</p></div>}
           </div>
 
-          {/* ヒートマップ */}
-          <div className="uk-overflow-auto uk-margin-top">
-            <table className="uk-table uk-table-striped uk-table-small">
-              <thead>
-                <tr>
-                  <th>候補日時</th><th>スコア</th><th>◎</th><th>△</th><th>×</th><th>割合</th>
-                </tr>
-              </thead>
-              <tbody>
-                {summary.slots.map(s => {
-                  const total = s.yes + s.maybe + s.no || 1
-                  return (
-                    <tr key={s.id}>
-                      <td>{new Date(s.start_at).toLocaleString()}</td>
-                      <td>{s.score.toFixed(1)}</td>
-                      <td>{s.yes}</td>
-                      <td>{s.maybe}</td>
-                      <td>{s.no}</td>
-                      <td>
-                        <div className="uk-flex">
-                          <div style={{ width: `${(s.yes / total) * 100}%`, background: '#4caf50', height: 10 }}></div>
-                          <div style={{ width: `${(s.maybe / total) * 100}%`, background: '#ffc107', height: 10 }}></div>
-                          <div style={{ width: `${(s.no / total) * 100}%`, background: '#f44336', height: 10 }}></div>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+          {/* heatmap table */}
+          <div className="uk-card uk-card-default uk-card-body uk-margin">
+            <h3 className="uk-margin-remove">全候補のヒートマップ</h3>
+            <div className="uk-overflow-auto">
+              <table className="uk-table uk-table-divider uk-table-small">
+                <thead>
+                  <tr>
+                    <th>候補日時</th><th>スコア</th><th>◎</th><th>△</th><th>×</th><th>割合</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summary.slots.map(s => {
+                    const total = Math.max(1, s.yes + s.maybe + s.no)
+                    const okW = (s.yes / total) * 100, mayW = (s.maybe / total) * 100, ngW = 100 - okW - mayW
+                    return (
+                      <tr key={s.id}>
+                        <td>{new Date(s.start_at).toLocaleString()} ～ {new Date(s.end_at).toLocaleTimeString()}</td>
+                        <td><b>{s.score.toFixed(1)}</b></td>
+                        <td>{s.yes}</td>
+                        <td>{s.maybe}</td>
+                        <td>{s.no}</td>
+                        <td style={{ width: 260 }}>
+                          <div className="meter">
+                            <div className="ok" style={{ width: `${okW}%` }} />
+                            <div className="maybe" style={{ width: `${mayW}%` }} />
+                            <div className="ng" style={{ width: `${ngW}%` }} />
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </>
-      ) : <p>読み込み中...</p>}
+        </div>
+      ) : <p>読み込み中…</p>}
     </main>
   )
 }
