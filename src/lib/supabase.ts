@@ -1,10 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.SUPABASE_URL as string
-const anonKey = process.env.SUPABASE_ANON_KEY as string
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY as string
+// ※ ここでは throw しない。API側で存在チェックして親切なJSONを返す
+const url = process.env.SUPABASE_URL
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-export const supabaseAnon = createClient(supabaseUrl, anonKey)
-export const supabaseService = createClient(supabaseUrl, serviceRoleKey, {
-  auth: { persistSession: false }
-})
+export const supabaseService = createClient(
+  url || 'http://localhost',            // ダミー（ENV無い場合でも型的に通す）
+  serviceKey || 'invalid-key',          // ダミー
+  { auth: { persistSession: false } }
+)

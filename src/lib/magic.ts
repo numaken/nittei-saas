@@ -1,5 +1,10 @@
-export function generateToken(len = 32) {
-  // URL-safe base64-ish token
-  const bytes = crypto.getRandomValues(new Uint8Array(len))
-  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('')
+// 安全なランダムトークン生成（Nodeランタイム）
+import { randomBytes } from 'crypto'
+
+export function generateToken(len = 16): string {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  const buf = randomBytes(len)
+  let out = ''
+  for (let i = 0; i < len; i++) out += alphabet[buf[i] % alphabet.length]
+  return out
 }

@@ -1,14 +1,12 @@
-import { supabaseService } from '@/lib/supabase'
+export function requireCreatePermission(req: any) {
+  // PUBLIC_CREATE=true のときは誰でも作成OK
+  if (process.env.PUBLIC_CREATE === 'true') return
 
-export function requireAdmin(req: any) {
+  // それ以外は ADMIN_SECRET が必須
   const k = req.headers['x-admin-key']
   if (!k || k !== process.env.ADMIN_SECRET) {
-    const err: any = new Error('Unauthorized'); (err as any).status = 401; throw err
+    const err: any = new Error('Unauthorized')
+    err.status = 401
+    throw err
   }
-}
-
-// PUBLIC_CREATE=true のときは作成は誰でもOK。それ以外は requireAdmin。
-export function requireCreatePermission(req: any) {
-  if (process.env.PUBLIC_CREATE === 'true') return
-  return requireAdmin(req)
 }
