@@ -1,3 +1,4 @@
+// src/pages/api/events/create.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { z } from 'zod'
 import { supabaseService } from '@/lib/supabase'
@@ -34,7 +35,7 @@ function requireEnvOrExplain(res: NextApiResponse) {
   const missing: string[] = []
   if (!process.env.SUPABASE_URL) missing.push('SUPABASE_URL')
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missing.push('SUPABASE_SERVICE_ROLE_KEY')
-  if (!process.env.NEXT_PUBLIC_SITE_URL) missing.push('NEXT_PUBLIC_SITE_URL') // 招待URL生成に使用
+  if (!process.env.NEXT_PUBLIC_SITE_URL) missing.push('NEXT_PUBLIC_SITE_URL')
   if (missing.length) {
     allow(res)
     res.status(500).json({ error: `Server env missing: ${missing.join(', ')}` })
@@ -43,7 +44,6 @@ function requireEnvOrExplain(res: NextApiResponse) {
   return true
 }
 
-// --- Optional throttle when PUBLIC_CREATE=true --------------------------------
 function getIP(req: NextApiRequest) {
   const xf = (req.headers['x-forwarded-for'] as string) || ''
   return xf.split(',')[0].trim() || (req.socket as any)?.remoteAddress || 'unknown'
@@ -57,26 +57,18 @@ async function throttleCreateIfPublic(req: NextApiRequest) {
     const { data: rows } = await supabaseService
       .from('rate_limits')
       .select('created_at')
-      .eq('ip', ip)
-      .eq('path', path)
-      .gte('created_at', since)
+      .eq('ip', ip).eq('path', path).gte('created_at', since)
     if ((rows?.length || 0) >= 5) {
       const err: any = new Error('Too many creates from your IP. Please wait.')
-      err.status = 429
-      throw err
+      err.status = 429; throw err
     }
     await supabaseService.from('rate_limits').insert({ ip, path })
-  } catch {
-    // テーブル未作成/権限NGでも作成は継続（ソフトフェイル）
-  }
+  } catch { /* soft-fail */ }
 }
-// -----------------------------------------------------------------------------
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const pre = await handlePreflight(req, res); if (pre !== undefined) return
-
   if (req.method !== 'POST') { allow(res); return res.status(405).json({ error: 'Method Not Allowed' }) }
-
   if (!requireEnvOrExplain(res)) return
 
   try { requireCreatePermission(req) }
@@ -89,62 +81,73 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try { await throttleCreateIfPublic(req) }
   catch (e: any) { return res.status(e.status || 429).json({ error: e.message || 'throttled' }) }
 
-  // イベント作成（organizer_token 付きで試し → ダメなら無しで再試行）
   const organizerToken = generateToken(24)
-  let ev: any | null = null
-  {
-    const { data, error } = await supabaseService
-      .from('events')
-      .insert({
-        title: b.title,
-        description: b.description || null,
-        duration_min: b.durationMin,
-        timezone: b.timezone,
-        deadline_at: b.deadlineAt || null,
-        organizer_token: organizerToken
-      } as any)
-      .select('*').single()
-    if (error) {
-      const { data: data2, error: e2 } = await supabaseService
-        .from('events')
-        .insert({
-          title: b.title,
-          description: b.description || null,
-          duration_min: b.durationMin,
-          timezone: b.timezone,
-          deadline_at: b.deadlineAt || null
-        })
-        .select('*').single()
-      if (e2) {
-        console.error('create: insert events failed', error?.message, e2?.message)
-        allow(res); return res.status(500).json({ error: e2.message || error.message || 'insert events failed' })
-      }
-      ev = data2
-    } else {
-      ev = data
+
+  // Try with organizer_token
+  const tryInsert = async (withOrganizer: boolean) => {
+    const payload: any = {
+      title: b.title,
+      description: b.description || null,
+      duration_min: b.durationMin,
+      timezone: b.timezone,
+      deadline_at: b.deadlineAt || null
     }
+    if (withOrganizer) payload.organizer_token = organizerToken
+
+    return await supabaseService
+      .from('events')
+      .insert(payload)
+      .select('*')
+      .single()
   }
 
+  // 1st attempt (with organizer_token)
+  let { data: ev, error: e1 }: any = await tryInsert(true)
+
+  // Fallback (no organizer_token)
+  if (e1) {
+    const r2: any = await tryInsert(false)
+    if (r2.error) {
+      allow(res)
+      return res.status(500).json({
+        error: r2.error.message || 'insert events failed',
+        code: r2.error.code,
+        details: r2.error.details,
+        hint: r2.error.hint
+      })
+    }
+    ev = r2.data
+  }
+
+  // slots
   const slotsPayload = b.slots.map((s, i) => ({
     event_id: ev.id, start_at: s.startAt, end_at: s.endAt, slot_index: i
   }))
-  const { data: slots, error: eSlots } = await supabaseService.from('event_slots').insert(slotsPayload).select('*')
-  if (eSlots) { console.error('create: insert slots failed', eSlots.message); allow(res); return res.status(500).json({ error: eSlots.message }) }
+  const rSlots: any = await supabaseService.from('event_slots').insert(slotsPayload).select('*')
+  if (rSlots.error) {
+    allow(res); return res.status(500).json({
+      error: rSlots.error.message, code: rSlots.error.code, details: rSlots.error.details, hint: rSlots.error.hint
+    })
+  }
 
+  // participants
   const participantsPayload = b.participants.map(p => ({
     event_id: ev.id, name: p.name || null, email: p.email || null, role: p.role, invite_token: generateToken(16)
   }))
-  const { data: participants, error: eParts } = await supabaseService.from('participants').insert(participantsPayload).select('*')
-  if (eParts) { console.error('create: insert participants failed', eParts.message); allow(res); return res.status(500).json({ error: eParts.message }) }
+  const rParts: any = await supabaseService.from('participants').insert(participantsPayload).select('*')
+  if (rParts.error) {
+    allow(res); return res.status(500).json({
+      error: rParts.error.message, code: rParts.error.code, details: rParts.error.details, hint: rParts.error.hint
+    })
+  }
 
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
-  const invites = (participants || []).map((p: any) => ({
+  const invites = (rParts.data || []).map((p: any) => ({
     name: p.name, email: p.email, url: `${baseUrl}/event/${ev.id}?t=${p.invite_token}`
   }))
-
-  const organizerKey: string | undefined =
+  const organizerKey =
     (ev && typeof (ev as any).organizer_token === 'string') ? (ev as any).organizer_token : undefined
 
   allow(res)
-  return res.status(200).json({ event: ev, slots, participants, invites, organizerKey })
+  return res.status(200).json({ event: ev, slots: rSlots.data, participants: rParts.data, invites, organizerKey })
 }
