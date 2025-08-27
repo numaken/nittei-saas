@@ -19,7 +19,14 @@
     "incremental": true,
     "types": [
       "node"
-    ]
+    ],
+    // 👇ここを追加
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "src/*"
+      ]
+    }
   },
   "include": [
     "next-env.d.ts",
