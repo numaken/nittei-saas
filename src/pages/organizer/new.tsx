@@ -21,7 +21,12 @@ export default function NewEventPage() {
         title,
         durationMin: Number(duration),
         timezone: 'Asia/Tokyo',
-        slots: slots.filter(s => s.startAt && s.endAt),
+        slots: slots
+          .filter(s => s.startAt && s.endAt)
+          .map(s => ({
+            startAt: new Date(s.startAt).toISOString(),
+            endAt: new Date(s.endAt).toISOString(),
+          })),
         participants: parts.map(p => ({ name: p.name || undefined, email: p.email || undefined, role: p.role }))
       }
       const res = await fetch('/api/events/create', {

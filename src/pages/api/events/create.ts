@@ -4,15 +4,24 @@ import { supabaseService } from '@/lib/supabase'
 import { generateToken } from '@/lib/magic'
 import { requireCreatePermission } from '@/lib/admin'
 
+const toIso = z.preprocess((v) => {
+  if (typeof v === 'string') {
+    // 'YYYY-MM-DDTHH:mm' でも Date が解釈（ローカル時刻扱い）→ ISO に統一
+    const d = new Date(v)
+    if (!Number.isNaN(d.getTime())) return d.toISOString()
+  }
+  return v
+}, z.string().datetime())
+
 const Body = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
   durationMin: z.number().int().positive(),
   timezone: z.string().default('Asia/Tokyo'),
-  deadlineAt: z.string().datetime().optional(),
+  deadlineAt: toIso.optional(),
   slots: z.array(z.object({
-    startAt: z.string().datetime(),
-    endAt: z.string().datetime()
+    startAt: toIso,   // ← 前処理で ISO に
+    endAt: toIso      // ← 前処理で ISO に
   })).min(1),
   participants: z.array(z.object({
     name: z.string().optional(),
@@ -47,7 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   catch (e: any) { return res.status(e.status || 401).json({ error: e.message }) }
 
   const parsed = Body.safeParse(req.body)
-  if (!parsed.success) return res.status(400).json({ error: parsed.error.message })
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues || parsed.error.message })
   const b = parsed.data
 
   // 1) events 挿入（organizer_token は DB の DEFAULT で自動付与）
@@ -90,6 +99,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     slots: rSlots.data,
     participants: rParts.data,
     invites,
-    organizerKey: (ev as any).organizer_token // ★ DBが自動生成した鍵を返す
+    organizerKey: (ev as any).organizer_token
   })
 }
