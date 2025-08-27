@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
-import 'uikit/dist/css/uikit.min.css'
-import UIkit from 'uikit'
 
 type Slot = { id: string; start_at: string; end_at: string; score: number; yes: number; maybe: number; no: number }
 type Summary = { event: { id: string; title: string; description?: string; duration_min: number }; slots: Slot[] }
