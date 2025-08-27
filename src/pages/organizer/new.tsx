@@ -34,10 +34,12 @@ export default function NewEvent() {
 
   const create = async () => {
     setError(null); setResult(null)
-    if (!adminKey) { setError('ADMINキーを入力してください'); return }
-    if (!title) { setError('タイトルは必須です'); return }
 
-    // 空行を除去して整形
+    // 必須チェック
+    if (process.env.NEXT_PUBLIC_SITE_URL === undefined) {
+      // なくても動きますが、警告として残すならこういう感じでもOK
+    }
+    if (!title) { setError('タイトルは必須です'); return }
     const body = {
       title,
       description: description || undefined,
@@ -46,34 +48,51 @@ export default function NewEvent() {
       deadlineAt: deadlineAt ? new Date(deadlineAt).toISOString() : undefined,
       slots: slots
         .filter(s => s.startAt && s.endAt)
-        .map(s => ({ startAt: parseLocalToUTC(s.startAt), endAt: parseLocalToUTC(s.endAt) })),
+        .map(s => ({ startAt: new Date(s.startAt).toISOString(), endAt: new Date(s.endAt).toISOString() })),
       participants: participants
         .filter(p => (p.name || p.email))
         .map(p => ({ name: p.name || undefined, email: p.email || undefined, role: p.role }))
     }
-
     if (body.slots.length === 0) { setError('候補日時を1件以上入力してください'); return }
     if (body.participants.length === 0) { setError('参加者を1名以上入力してください'); return }
 
     setLoading(true)
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (adminKey) headers['x-admin-key'] = adminKey  // PUBLIC_CREATE=false のときに必要
+
       const res = await fetch('/api/events/create', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-key': adminKey
-        },
+        headers,
         body: JSON.stringify(body)
       })
-      const j = await res.json()
-      if (!res.ok) throw new Error(j.error || '作成に失敗しました')
-      setResult(j)
+
+      const ct = res.headers.get('content-type') || ''
+      let data: any = null
+      let text = ''
+      try {
+        if (ct.includes('application/json')) {
+          data = await res.json()
+        } else {
+          text = await res.text()
+        }
+      } catch {
+        // 本当に空ボディでも落ちないように握りつぶす
+      }
+
+      if (!res.ok) {
+        const msg = (data && data.error) || text || `HTTP ${res.status}`
+        throw new Error(msg)
+      }
+
+      setResult(data)  // { event, slots, participants, invites, organizerKey }
     } catch (e: any) {
-      setError(e.message)
+      setError(e.message || '作成に失敗しました')
     } finally {
       setLoading(false)
     }
   }
+
 
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || ''
 
