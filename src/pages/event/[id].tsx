@@ -21,6 +21,13 @@ type Summary = {
 
 type Choice = 'yes' | 'maybe' | 'no'
 
+/** URLの ?t= に余計な文字が付いていても、英数字の先頭塊だけを招待トークンとして抽出 */
+function extractToken(raw?: string) {
+  if (!raw) return undefined
+  const m = String(raw).match(/[A-Za-z0-9]+/)
+  return m ? m[0] : undefined
+}
+
 /** イベントのタイムゾーンで「YYYY/M/D(曜) HH:mm 〜 HH:mm (TZ)」に整形 */
 function fmtRangeInTZ(startIso: string, endIso: string, tz: string) {
   const sd = new Date(startIso)
@@ -48,7 +55,8 @@ function fmtRangeInTZ(startIso: string, endIso: string, tz: string) {
 
 export default function EventPage() {
   const router = useRouter()
-  const { id, t } = router.query as { id?: string; t?: string }
+  const { id, t: rawT } = router.query as { id?: string; t?: string }
+  const token = extractToken(rawT)
 
   const [summary, setSummary] = useState<Summary | null>(null)
   const [loading, setLoading] = useState(false)
@@ -80,7 +88,6 @@ export default function EventPage() {
   const sortedSlots = useMemo(() => {
     const list = summary?.slots || []
     return [...list].sort((a, b) => {
-      // slot_index があればそれで、無ければ開始時刻で
       if (a.slot_index != null && b.slot_index != null) return a.slot_index - b.slot_index
       return a.start_at.localeCompare(b.start_at)
     })
@@ -88,15 +95,15 @@ export default function EventPage() {
 
   async function vote(slotId: string, choice: Choice) {
     if (!id) return
-    if (!t) {
-      alert('招待URLが必要です（?t= のトークンが見つかりません）')
+    if (!token) {
+      alert('招待URLが正しくありません（?t= のトークンが見つかりません）')
       return
     }
     try {
       const res = await fetch(`/api/events/${id}/vote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: t, slotId, choice }),
+        body: JSON.stringify({ token, slotId, choice }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`)
@@ -152,7 +159,7 @@ export default function EventPage() {
         </p>
       </header>
 
-      {!t && (
+      {!token && (
         <p style={{ color: '#b00020', marginBottom: 16 }}>
           ⚠️ 招待トークン（URL の <code>?t=</code>）が見つかりません。配布されたURLからアクセスしてください。
         </p>
