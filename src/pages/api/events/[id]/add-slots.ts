@@ -26,7 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const slotsPayload = b.slots.map((s, i) => ({
     event_id: id,
     start_at: s.startAt,
-    end_at: s.EndAt || s.endAt,
+    end_at: s.endAt,
     slot_index: startIdx + i
   }))
   const { data, error } = await supabaseService.from('event_slots').insert(slotsPayload).select('*')
