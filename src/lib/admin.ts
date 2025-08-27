@@ -1,12 +1,10 @@
 import { supabaseService } from '@/lib/supabase'
 
-// 既存互換: グローバル管理キー（ADMIN_SECRET）で保護
+// 既存互換: グローバル管理キー
 export function requireAdmin(req: any) {
   const k = req.headers['x-admin-key']
   if (!k || k !== process.env.ADMIN_SECRET) {
-    const err: any = new Error('Unauthorized')
-    err.status = 401
-    throw err
+    const err: any = new Error('Unauthorized'); err.status = 401; throw err
   }
 }
 
@@ -16,17 +14,15 @@ export function requireCreatePermission(req: any) {
   return requireAdmin(req)
 }
 
-// イベントごとの organizer_token か、グローバル ADMIN_SECRET のどちらかOK
+// イベント鍵 or 管理鍵 のどちらか通ればOK
 export async function requireOrganizerOrAdmin(req: any, eventId: string) {
+  // 管理者なら即OK
   const admin = req.headers['x-admin-key']
   if (admin && admin === process.env.ADMIN_SECRET) return
 
+  // イベント鍵チェック
   const organizer = req.headers['x-organizer-key']
-  if (!organizer) {
-    const err: any = new Error('Unauthorized')
-    err.status = 401
-    throw err
-  }
+  if (!organizer) { const err: any = new Error('Unauthorized'); err.status = 401; throw err }
 
   const { data: ev, error } = await supabaseService
     .from('events')
@@ -35,8 +31,6 @@ export async function requireOrganizerOrAdmin(req: any, eventId: string) {
     .single()
 
   if (error || !ev || ev.organizer_token !== organizer) {
-    const err: any = new Error('Unauthorized')
-    err.status = 401
-    throw err
+    const err: any = new Error('Unauthorized'); err.status = 401; throw err
   }
 }
